@@ -97,10 +97,20 @@ export const render = ({ output, error }) => {
               cursor: "pointer",
             }}
           >
-            <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>{it.title}</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.4, fontWeight: 600 }}>
+              {it.title}
+            </div>
             <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>
               {it.category} · {it.org}
             </div>
+            <div style={{ fontSize: 11, color: "#ffb84d", marginTop: 3 }}>
+              마감: {it.deadline}
+            </div>
+            {it.summary && (
+              <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
+                {it.summary}
+              </div>
+            )}
           </div>
         ))
       )}
