@@ -25,11 +25,12 @@ API_URL = "https://www.youthcenter.go.kr/opi/youthPlcyList.do"
 # ── 여기서 관심 카테고리/키워드를 자유롭게 편집하세요 ──────────────────
 # key: 화면에 표시될 카테고리 이름
 # value: 온통청년 API에 넘길 검색 키워드 (여러 개면 OR 검색됨)
+# 순서 = 우선순위 (지금 상태: 서울 거주 / 구직·취업준비중 기준으로 정렬)
 CATEGORIES = {
-    "청년 주택/전월세": "청년 주택 전세 임대",
-    "취업/구직 지원금": "국민취업지원제도 구직 취업",
-    "교육/자격증/학자금": "학자금 장학금 교육비",
-    "현금성 지원(바우처 등)": "에너지바우처 생활지원금",
+    "취업/구직 지원금": "국민취업지원제도 청년구직활동지원금 내일배움카드 채용 면접수당",
+    "청년 주택/전월세(서울)": "서울 청년 주택 전세 임대 LH SH 매입임대 청년안심주택",
+    "현금성 지원(서울 청년수당 등)": "서울 청년수당 안심소득 에너지바우처 생활지원금",
+    "교육/자격증/학자금": "국가장학금 학자금대출 자격증 취득 교육비 지원",
 }
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "docs" / "data.json"
@@ -53,31 +54,59 @@ def fetch_category(api_key: str, keyword: str, display: int = 30) -> list[dict]:
         print(f"[경고] API 호출 실패 (keyword={keyword}): {e}", file=sys.stderr)
         return []
 
+    # ── 디버그: 실제 응답이 어떻게 생겼는지 로그에 그대로 출력 ──────────
+    print(f"[디버그] keyword={keyword} 응답 원본(앞 500자): {raw[:500]}", file=sys.stderr)
+
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
         print(f"[경고] JSON 파싱 실패 (keyword={keyword}). 응답 일부: {raw[:200]}", file=sys.stderr)
         return []
 
+    print(f"[디버그] keyword={keyword} 최상위 키 목록: {list(payload.keys())}", file=sys.stderr)
+
     items = (
         payload.get("result", {}).get("youthPolicyList")
         or payload.get("youthPolicyList")
         or []
     )
+    print(f"[디버그] keyword={keyword} 추출된 항목 수: {len(items)}", file=sys.stderr)
+    if items:
+        print(f"[디버그] 첫 항목 필드명: {list(items[0].keys())}", file=sys.stderr)
     return items
 
 
 def normalize(item: dict, category_name: str) -> dict:
-    """API 응답 필드를 화면에서 쓰기 좋은 형태로 정리."""
+    """API 응답 필드를 화면에서 쓰기 좋은 형태로 정리.
+
+    주의: 온통청년 API 실제 응답 필드명은 신청 승인 후 첫 실행 결과를 보고
+    한 번 더 맞춰야 할 수 있습니다(문서 페이지가 JS로 그려져서 필드명을
+    100% 확정하지 못했어요). 아래는 후보 필드명을 여러 개 넣어 둔 상태라
+    실제 응답과 다르면 fetch_policies.py 실행 로그의 원본 JSON을 보고
+    .get(...) 안의 키 이름만 바꿔주면 됩니다.
+    """
     plcy_no = item.get("bizId") or item.get("plcyNo") or item.get("polyBizSjnm", "")
+    deadline = (
+        item.get("aplyYmd")
+        or item.get("rqutPrdCn")
+        or item.get("plcyAplyPrdSeCd")
+        or "마감일 정보 없음 (공고 확인 필요)"
+    )
+    benefit = (
+        item.get("plcySprtCn")
+        or item.get("sprtCn")
+        or item.get("polyItcnCn")
+        or ""
+    )
     return {
         "id": str(plcy_no),
         "title": item.get("polyBizSjnm") or item.get("plcyNm") or "제목 없음",
         "org": item.get("sponsorInstCdNm") or item.get("rgtrInstCdNm") or "",
         "category": category_name,
+        "deadline": deadline,
         "period": item.get("rqutPrdCn") or item.get("aplyYmd") or "상시/공고 참고",
         "url": item.get("rqutUrla") or item.get("aplyUrlAddr") or "https://www.youthcenter.go.kr",
-        "summary": (item.get("polyItcnCn") or "")[:100],
+        "summary": benefit[:80] if benefit else "핵심 지원내용은 공고에서 확인",
     }
 
 
