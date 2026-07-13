@@ -17,20 +17,30 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
 API_URL = "https://www.youthcenter.go.kr/opi/youthPlcyList.do"
 
+# 정부 사이트 보안시스템이 "파이썬이 보낸 요청"임을 감지해서 막는 경우가 있어서
+# 일반 브라우저처럼 보이는 헤더를 붙여 보냅니다.
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    )
+}
+
 # ── 여기서 관심 카테고리/키워드를 자유롭게 편집하세요 ──────────────────
 # key: 화면에 표시될 카테고리 이름
-# value: 온통청년 API에 넘길 검색 키워드 (여러 개면 OR 검색됨)
+# value: 온통청년 API에 넘길 검색 키워드 (콤마로 구분된 단어 목록, OR 검색됨)
 # 순서 = 우선순위 (지금 상태: 서울 거주 / 구직·취업준비중 기준으로 정렬)
 CATEGORIES = {
-    "취업/구직 지원금": "국민취업지원제도 청년구직활동지원금 내일배움카드 채용 면접수당",
-    "청년 주택/전월세(서울)": "서울 청년 주택 전세 임대 LH SH 매입임대 청년안심주택",
-    "현금성 지원(서울 청년수당 등)": "서울 청년수당 안심소득 에너지바우처 생활지원금",
-    "교육/자격증/학자금": "국가장학금 학자금대출 자격증 취득 교육비 지원",
+    "취업/구직 지원금": "국민취업지원제도,청년구직활동지원금,내일배움카드,채용,면접수당",
+    "청년 주택/전월세(서울)": "청년주택,전세,임대,LH,SH,청년안심주택",
+    "현금성 지원(서울 청년수당 등)": "청년수당,안심소득,에너지바우처,생활지원금",
+    "교육/자격증/학자금": "국가장학금,학자금대출,자격증,교육비",
 }
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "docs" / "data.json"
@@ -47,8 +57,9 @@ def fetch_category(api_key: str, keyword: str, display: int = 30) -> list[dict]:
         "rtnType": "json",
     }
     url = f"{API_URL}?{urlencode(params)}"
+    req = Request(url, headers=HEADERS)
     try:
-        with urlopen(url, timeout=20) as resp:
+        with urlopen(req, timeout=30) as resp:
             raw = resp.read().decode("utf-8")
     except (URLError, HTTPError) as e:
         print(f"[경고] API 호출 실패 (keyword={keyword}): {e}", file=sys.stderr)
